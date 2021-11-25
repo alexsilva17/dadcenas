@@ -1,0 +1,95 @@
+# For more information: https://laravel.com/docs/sail
+version: '3.7'
+
+services:
+  # PHP-FPM - Service
+    laravelgui:
+        build:
+            context: .
+            dockerfile: Dockerfile
+
+        container_name: laravelgui   
+        restart: unless-stopped
+        tty: true
+        working_dir: /var/www
+
+        volumes:
+            - ./:/var/www
+            - ./docker-files/php/local.ini:/usr/local/etc/php/conf.d/local.ini
+
+        networks:
+             - gui
+
+    # NGINX - Service
+    webserver:
+        image: nginx:alpine
+        container_name: webserver
+        restart: unless-stopped
+        tty: true
+
+        ports:
+            - "90:80"
+            - "444:443"
+
+        volumes:
+            - ./:/var/www/html/
+            - ./docker-files/nginx/conf.d/:/etc/nginx/conf.d/
+
+        networks:
+            - gui
+
+    mysql:
+        image: 'mysql/mysql-server:8.0'
+        container_name: mysql
+        restart: unless-stopped
+        tty: true
+        ports:
+            - '${FORWARD_DB_PORT:-3306}:3306'
+        environment:
+            MYSQL_ROOT_PASSWORD: '${DB_PASSWORD}'
+            MYSQL_ROOT_HOST: "%"
+            MYSQL_DATABASE: '${DB_DATABASE}'
+            MYSQL_USER: '${DB_USERNAME}'
+            MYSQL_PASSWORD: '${DB_PASSWORD}'
+            MYSQL_ALLOW_EMPTY_PASSWORD: 1
+        volumes:
+            - 'mysqldata:/var/lib/mysql'
+            - ./docker-files/mysql/my.cnf:/etc/mysql/my.cnf
+        networks:
+            - gui
+        healthcheck:
+            test: ["CMD", "mysqladmin", "ping", "-p${DB_PASSWORD}"]
+            retries: 3
+            timeout: 5s
+
+    redis:
+            image: 'redis:alpine'
+            ports:
+                - '${FORWARD_REDIS_PORT:-6379}:6379'
+            volumes:
+                - 'redis:/data'
+            networks:
+                - gui
+            healthcheck:
+                test: ["CMD", "redis-cli", "ping"]
+                retries: 3
+                timeout: 5s
+
+    selenium:
+            image: 'selenium/standalone-chrome'
+            volumes:
+                - '/dev/shm:/dev/shm'
+            networks:
+                - gui
+
+networks:
+    gui:
+        driver: bridge
+
+volumes:
+    mysql:
+        driver: local
+    redis:
+        driver: local
+    
+    
